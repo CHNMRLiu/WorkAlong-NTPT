@@ -3,17 +3,17 @@
     <PageHeader :title="`${orgName} · 能碳看板`" :subtitle="`${year} 年度概览`" />
 
     <div class="dash-cards">
-      <StatCard label="总碳排放" :value="fmt(summary.total_carbon, 2)" unit="tCO₂e" />
-      <StatCard label="综合能耗(标煤)" :value="fmt(summary.total_standard_coal, 2)" unit="kgce" />
-      <StatCard label="总能耗" :value="fmt(summary.total_consumption, 2)" unit="" />
-      <StatCard label="总能源费用" :value="fmt(summary.total_cost, 2)" unit="元" />
+      <div class="dash-card" @click="go('carbon-statistics')"><StatCard label="总碳排放" :value="fmt(summary.total_carbon, 2)" unit="tCO₂e" /></div>
+      <div class="dash-card" @click="go('energy-comprehensive')"><StatCard label="综合能耗(标煤)" :value="fmt(summary.total_standard_coal, 2)" unit="kgce" /></div>
+      <div class="dash-card" @click="go('energy-meter-query')"><StatCard label="总能耗" :value="fmt(summary.total_consumption, 2)" unit="" /></div>
+      <div class="dash-card" @click="go('energy-comprehensive')"><StatCard label="总能源费用" :value="fmt(summary.total_cost, 2)" unit="元" /></div>
     </div>
 
     <div class="dash-cards dash-cards--sm">
-      <StatCard label="碳排放产值强度" :value="fmt(summary.carbon_intensity_value, 4)" unit="tCO₂e/万元" />
-      <StatCard label="单位产值能耗" :value="fmt(summary.energy_per_value, 4)" unit="kgce/万元" />
-      <StatCard label="总产量" :value="fmt(summary.total_output, 2)" />
-      <StatCard label="总产值" :value="fmt(summary.total_output_value, 2)" unit="元" />
+      <div class="dash-card" @click="go('carbon-report')"><StatCard label="碳排放产值强度" :value="fmt(summary.carbon_intensity_value, 4)" unit="tCO₂e/万元" /></div>
+      <div class="dash-card" @click="go('energy-efficiency')"><StatCard label="单位产值能耗" :value="fmt(summary.energy_per_value, 4)" unit="kgce/万元" /></div>
+      <div class="dash-card" @click="go('energy-production')"><StatCard label="总产量" :value="fmt(summary.total_output, 2)" /></div>
+      <div class="dash-card" @click="go('energy-production')"><StatCard label="总产值" :value="fmt(summary.total_output_value, 2)" unit="元" /></div>
     </div>
 
     <el-row :gutter="16">
@@ -38,10 +38,14 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/StatCard.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import { getDashboardSummary, getCarbonTrend, getEnergyStructure, getUnitRanking, getScopeBreakdown } from '@/api'
+
+const router = useRouter()
+function go(name) { router.push({ name }) }
 
 const year = new Date().getFullYear()
 const orgName = ref('')
@@ -119,4 +123,6 @@ onMounted(async () => {
 <style scoped>
 .dash-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
 .dash-cards--sm { grid-template-columns: repeat(4, 1fr); }
+.dash-card { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+.dash-card:hover { transform: translateY(-2px); }
 </style>
