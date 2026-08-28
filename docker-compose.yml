@@ -1,13 +1,12 @@
 # 长泵能碳管理系统 (WorkBuddy-NTPT) —— Docker 编排
 #
-# 标准端口说明（宿主机 → 容器）：
-#   db:       5432  → 5432
-#   backend:  8000  → 8000   (API / Swagger)
-#   frontend: 80    → 80     (Web)
+# 说明：本机 5432 / 8000 / 80 端口已被其他服务占用，故宿主机侧使用 15432 / 18000 / 18080。
+# 容器间通过内部网络（db / backend / frontend）通信，不依赖宿主机端口，因此无需改动。
+# 如需标准端口，将左侧宿主机端口改回 5432/8000/80 并释放占用端口即可。
 #
-# 如果宿主机端口被占用（常见于开发机），只需修改左侧宿主机端口即可，
-# 例如：5432:5432 → 15432:5432、8000:8000 → 18000:8000、80:80 → 18080:80。
-# 容器间通过内部网络（db / backend / frontend）通信，不依赖宿主机端口。
+#   db:       15432 → 5432
+#   backend:  18000 → 8000   (API / Swagger)
+#   frontend: 18080 → 80     (Web)
 
 services:
   db:
@@ -20,7 +19,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "15432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d energy_carbon"]
       interval: 5s
@@ -39,7 +38,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "18000:8000"
     restart: unless-stopped
 
   frontend:
@@ -48,7 +47,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "18080:80"
     restart: unless-stopped
 
 volumes:
