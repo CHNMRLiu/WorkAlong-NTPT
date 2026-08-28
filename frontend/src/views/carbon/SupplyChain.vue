@@ -2,6 +2,19 @@
   <div class="page">
     <PageHeader title="供应链碳管理" subtitle="管理上游供应商及其材料/能耗碳数据，支撑范围3核算" />
 
+    <el-alert
+      v-if="summary"
+      class="sc-banner"
+      type="success"
+      :closable="false"
+      show-icon
+    >
+      <template #title>
+        <span>{{ summary.year }} 年供应链范围3合计排放 <b>{{ fmt(summary.scope3_total) }}</b> tCO₂e，涉及 {{ summary.supplier_count }} 家供应商。</span>
+        <el-button style="margin-left:12px" size="small" type="primary" @click="goStats">查看碳排统计</el-button>
+      </template>
+    </el-alert>
+
     <el-row :gutter="16">
       <el-col :span="11">
         <el-card class="panel">
@@ -79,13 +92,16 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import {
   listSuppliers, createSupplier, updateSupplier, deleteSupplier,
-  listSupplierCarbon, createSupplierCarbon, deleteSupplierCarbon
+  listSupplierCarbon, createSupplierCarbon, deleteSupplierCarbon, getSupplyChainSummary
 } from '@/api'
 
+const router = useRouter()
+const summary = ref(null)
 const suppliers = ref([]); const loadingSup = ref(false)
 const currentSup = ref(null)
 const carbonData = ref([]); const loadingCarbon = ref(false)
@@ -124,5 +140,11 @@ async function saveCarbon() {
 async function removeCarbon(row) {
   await ElMessageBox.confirm('删除该碳数据？', '提示', { type: 'warning' }).then(async () => { await deleteSupplierCarbon(row.id); ElMessage.success('已删除'); loadCarbon(); loadSuppliers() }).catch(() => {})
 }
-onMounted(loadSuppliers)
+function fmt(v, d = 2) { if (v == null || isNaN(v)) return '0'; return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: d, maximumFractionDigits: d }) }
+function goStats() { router.push({ name: 'carbon-statistics' }) }
+async function loadSummary() {
+  try { summary.value = await getSupplyChainSummary({ year: new Date().getFullYear() }) } catch (e) { summary.value = null }
+}
+onMounted(() => { loadSuppliers(); loadSummary() })
 </script>
+<style scoped>.sc-banner { margin-bottom: 16px; }</style>
