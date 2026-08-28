@@ -16,6 +16,7 @@ from ..models import (
     MeterReading,
     Organization,
     ProductionData,
+    SupplierCarbonData,
 )
 from ..utils.response import ok
 from .deps import get_current_user
@@ -51,6 +52,10 @@ def dashboard_summary(year: int = Query(None), db: Session = Depends(get_db),
     carbon_intensity_value = round((total_carbon / 1000) / (total_value / 10000), 6) if total_value else 0
     carbon_intensity_product = round((total_carbon / 1000) / total_output, 6) if total_output else 0
 
+    # 供应链范围3（供应商碳数据）
+    supply_chain_carbon = float(sum(
+        sr.emission or 0 for sr in db.query(SupplierCarbonData).filter(SupplierCarbonData.year == y).all()))
+
     return ok({
         "year": y,
         "org_name": org.name if org else "",
@@ -58,6 +63,7 @@ def dashboard_summary(year: int = Query(None), db: Session = Depends(get_db),
         "total_cost": round(total_cost, 2),
         "total_standard_coal": round(total_coal, 4),
         "total_carbon": round(total_carbon, 6),
+        "supply_chain_carbon": round(supply_chain_carbon, 6),
         "total_output": round(total_output, 4),
         "total_output_value": round(total_value, 2),
         "energy_per_value": energy_per_value,
@@ -130,6 +136,9 @@ def scope_breakdown(year: int = Query(None), db: Session = Depends(get_db),
         sc = src.scope if src else "范围1"
         if sc in scope_sum:
             scope_sum[sc] += float(r.emission or 0)
+    # 供应链范围3（供应商碳数据）并入范围占比
+    for sr in db.query(SupplierCarbonData).filter(SupplierCarbonData.year == y).all():
+        scope_sum["范围3"] += float(sr.emission or 0)
     total = sum(scope_sum.values()) or 1
     items = [{"name": k, "value": round(v, 6), "ratio": round(v / total * 100, 2)}
              for k, v in scope_sum.items()]
