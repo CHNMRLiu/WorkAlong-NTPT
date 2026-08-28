@@ -8,6 +8,8 @@
           <el-option v-for="y in yearOptions" :key="y" :label="y + ' 年'" :value="y" />
         </el-select>
         <el-button type="primary" @click="openAdd">新增预算</el-button>
+        <el-button type="success" :loading="syncing" @click="syncActual">从实际能耗同步</el-button>
+        <span class="tip">按各预算口径自动取数：表计读数 + 手工录入</span>
       </div>
       <el-table :data="list" border stripe v-loading="loading" :empty-text="'暂无预算'">
         <el-table-column prop="year" label="年份" width="80" />
@@ -66,9 +68,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
-import { listEnergyBudgets, createEnergyBudget, updateEnergyBudget, deleteEnergyBudget, listEnergyTypes, listEnergyUnits } from '@/api'
+import { listEnergyBudgets, createEnergyBudget, updateEnergyBudget, deleteEnergyBudget, listEnergyTypes, listEnergyUnits, getEnergyBudgetActual } from '@/api'
 
 const list = ref([]); const total = ref(0); const page = ref(1); const pageSize = ref(50); const loading = ref(false)
+const syncing = ref(false)
 const year = ref(new Date().getFullYear()); const yearOptions = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i)
 const energyTypes = ref([]); const units = ref([])
 const etMap = ref({}); const unitMap = ref({})
@@ -104,6 +107,22 @@ async function save() {
 async function remove(row) {
   await ElMessageBox.confirm('删除该预算？', '提示', { type: 'warning' }).then(async () => { await deleteEnergyBudget(row.id); ElMessage.success('已删除'); load() }).catch(() => {})
 }
+async function syncActual() {
+  if (!list.value.length) return ElMessage.warning('暂无预算可同步')
+  syncing.value = true
+  try {
+    let n = 0
+    for (const row of list.value) {
+      const res = await getEnergyBudgetActual({ year: row.year, month: row.month || null, energy_type_id: row.energy_type_id, unit_id: row.unit_id || null })
+      const val = res.actual_value
+      if (val != null && val !== row.actual_value) {
+        await updateEnergyBudget(row.id, { actual_value: val })
+        n++
+      }
+    }
+    ElMessage.success(`已同步 ${n} 条预算的实际能耗`); load()
+  } catch (e) { ElMessage.error('同步失败') } finally { syncing.value = false }
+}
 onMounted(async () => {
   const [e, u] = await Promise.all([listEnergyTypes(), listEnergyUnits()])
   energyTypes.value = e.items || e; units.value = u.items || u
@@ -112,4 +131,4 @@ onMounted(async () => {
   load()
 })
 </script>
-<style scoped>.pager { margin-top: 16px; justify-content: flex-end; } .filter-bar { display: flex; gap: 12px; margin-bottom: 14px; }</style>
+<style scoped>.pager { margin-top: 16px; justify-content: flex-end; } .filter-bar { display: flex; gap: 12px; margin-bottom: 14px; align-items: center; } .tip { font-size: 12px; color: #8A8A8E; }</style>
