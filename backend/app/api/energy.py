@@ -1,5 +1,5 @@
 """能源核心接口：表计读数、手工录入、生产数据、能效指标/测评、能流、预算，及统计接口。"""
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -494,6 +494,48 @@ def delete_carbon_budget(oid: int, db: Session = Depends(get_db),
         return fail("记录不存在")
     db.delete(obj); db.commit()
     return ok(message="已删除")
+
+
+# ---------------- 预算实际值取数 ----------------
+
+@router.get("/budgets/actual", summary="用能预算实际值（取表计+手工录入）")
+def energy_budget_actual(
+    year: int = Query(...), month: int = Query(None),
+    energy_type_id: int = Query(None), unit_id: int = Query(None),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+):
+    """打通 表计读数 / 手工录入 → 用能预算：返回某口径下实际能耗，供预算一键同步。"""
+    if month:
+        start = datetime(year, month, 1)
+        if month == 12:
+            end = datetime(year, 12, 31, 23, 59, 59)
+        else:
+            end = datetime(year, month + 1, 1) - timedelta(seconds=1)
+    else:
+        start = datetime(year, 1, 1)
+        end = datetime(year, 12, 31, 23, 59, 59)
+
+    q = db.query(MeterReading).join(Meter, MeterReading.meter_id == Meter.id)
+    if energy_type_id:
+        q = q.filter(Meter.energy_type_id == energy_type_id)
+    if unit_id:
+        q = q.filter(Meter.unit_id == unit_id)
+    q = q.filter(MeterReading.reading_time >= start, MeterReading.reading_time <= end)
+    cons = float(sum(r.consumption or 0 for r in q.all()))
+
+    mq = db.query(ManualEntry)
+    if energy_type_id:
+        mq = mq.filter(ManualEntry.energy_type_id == energy_type_id)
+    if unit_id:
+        mq = mq.filter(ManualEntry.unit_id == unit_id)
+    mq = mq.filter(ManualEntry.entry_date >= start, ManualEntry.entry_date <= end)
+    cons += float(sum(m.consumption or 0 for m in mq.all()))
+
+    return ok({
+        "year": year, "month": month,
+        "energy_type_id": energy_type_id, "unit_id": unit_id,
+        "actual_value": round(cons, 4),
+    })
 
 
 # ---------------- 统计接口 ----------------
