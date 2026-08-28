@@ -117,6 +117,22 @@ def carbon_statistics(
         key = f"{r.year}-{r.month:02d}"
         m = monthly.setdefault(key, {"month": key, "emission": 0.0})
         m["emission"] += em
+
+    # 供应链范围3（供应商碳数据）并入碳核算统计，形成完整范围1/2/3 闭环
+    show_supplier = (not scope) or scope == "全部" or scope == "范围3"
+    if show_supplier:
+        sup_q = db.query(SupplierCarbonData)
+        if year:
+            sup_q = sup_q.filter(SupplierCarbonData.year == year)
+        for sr in sup_q.all():
+            em = float(sr.emission or 0)
+            scope_sum["范围3"] += em
+            total += em
+            sup = db.query(Supplier).filter(Supplier.id == sr.supplier_id).first()
+            sname = f"供应链·{sup.name if sup else sr.supplier_id}"
+            s = source_map.setdefault(sname, {"name": sname, "scope": "范围3", "emission": 0.0})
+            s["emission"] += em
+
     sources = sorted(source_map.values(), key=lambda x: x["emission"], reverse=True)
     for s in sources:
         s["ratio"] = round(s["emission"] / total * 100, 2) if total else 0
@@ -138,7 +154,7 @@ def list_reports(db: Session = Depends(get_db), current_user=Depends(get_current
     return ok([CarbonReportResponse.model_validate(i).model_dump() for i in items])
 
 
-@router.post("/reports/generate", summary="生成碳报告（汇总碳核算）")
+@router.post("/reports/generate", summary="生成碳报告（汇总碳核算+供应链）")
 def generate_report(req: CarbonReportCreate, db: Session = Depends(get_db),
                     current_user=Depends(get_current_user)):
     year = req.year
@@ -157,6 +173,18 @@ def generate_report(req: CarbonReportCreate, db: Session = Depends(get_db),
             "scope": sc, "activity_data": r.activity_data,
             "unit": r.unit, "emission_factor": r.emission_factor,
             "emission": round(r.emission or 0, 6),
+        })
+    # 供应链范围3（供应商碳数据）并入报告，形成完整范围1/2/3
+    sup_rows = db.query(SupplierCarbonData).filter(SupplierCarbonData.year == year).all()
+    for sr in sup_rows:
+        scope_sum["范围3"] += float(sr.emission or 0)
+        total += float(sr.emission or 0)
+        sup = db.query(Supplier).filter(Supplier.id == sr.supplier_id).first()
+        source_items.append({
+            "source_name": f"供应链·{sup.name if sup else sr.supplier_id}",
+            "scope": "范围3", "activity_data": sr.quantity,
+            "unit": sr.unit, "emission_factor": sr.emission_factor,
+            "emission": round(sr.emission or 0, 6),
         })
     # 强度：产值强度(tCO2/万元) = 总排放(tCO2) / 总产值(万元)
     prod = db.query(ProductionData).filter(
@@ -181,9 +209,21 @@ def generate_report(req: CarbonReportCreate, db: Session = Depends(get_db),
     obj.report_date = req.report_date
     obj.status = "已生成"
     db.commit(); db.refresh(obj)
+    # 碳资产盈亏：配额/CCER 总量 vs 实际排放
+    assets = db.query(CarbonAsset).filter(CarbonAsset.year == year).all()
+    total_quota = float(sum(a.quantity or 0 for a in assets if a.asset_type == "配额"))
+    total_ccer = float(sum(a.quantity or 0 for a in assets if a.asset_type == "CCER"))
+    asset_summary = {
+        "year": year,
+        "actual_emission": round(total, 6),
+        "total_quota": round(total_quota, 6),
+        "total_ccer": round(total_ccer, 6),
+        "surplus": round(total_quota + total_ccer - total, 6),  # 正=盈余 负=缺口
+    }
     return ok({
         "report": CarbonReportResponse.model_validate(obj).model_dump(),
         "sources": source_items,
+        "asset_summary": asset_summary,
     })
 
 
@@ -246,6 +286,59 @@ def delete_footprint(oid: int, db: Session = Depends(get_db),
         return fail("记录不存在")
     db.delete(obj); db.commit()
     return ok(message="已删除")
+
+
+@router.post("/footprints/auto-allocate", summary="按产量分摊公司排放生成产品碳足迹")
+def auto_allocate_footprint(
+    year: int = Query(default=None, description="年度，默认当前年"),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+):
+    """打通 碳核算(总排放) × 生产数据(各产品产量) → 产品碳足迹(生产碳排)。
+    按各产品当年产量占比，将公司总排放分摊为该产品的 production 碳排字段。"""
+    yr = year or datetime.now().year
+    # 公司当年总排放（范围1+2，生产相关）
+    rows = db.query(CarbonAccounting).filter(CarbonAccounting.year == yr).all()
+    company_total = float(sum(r.emission or 0 for r in rows))
+    # 各产品当年产量
+    prod = db.query(ProductionData).filter(
+        ProductionData.stat_date >= datetime(yr, 1, 1),
+        ProductionData.stat_date <= datetime(yr, 12, 31, 23, 59, 59)).all()
+    by_product = {}
+    for p in prod:
+        by_product[p.product_id] = float(by_product.get(p.product_id, 0)) + float(p.output or 0)
+    total_output = float(sum(by_product.values()))
+    if not total_output:
+        return fail(f"请先在「生产数据」录入 {yr} 年各产品产量后再分摊")
+    created = 0
+    updated = 0
+    for pid, out in by_product.items():
+        share = out / total_output
+        prod_emission = round(company_total * share, 6)
+        fp = db.query(ProductFootprint).filter(ProductFootprint.product_id == pid).order_by(ProductFootprint.id.desc()).first()
+        if fp:
+            fp.production = prod_emission
+            fp.total = float(calc.calc_total_footprint(
+                fp.raw_material, fp.production, fp.transport, fp.use_phase, fp.disposal))
+            updated += 1
+        else:
+            prod_obj = db.query(Product).filter(Product.id == pid).first()
+            fp = ProductFootprint(
+                product_id=pid,
+                functional_unit=(prod_obj.output_unit if prod_obj else "吨"),
+                boundary="从摇篮到大门",
+                production=prod_emission,
+                total=prod_emission,
+            )
+            db.add(fp)
+            created += 1
+    db.commit()
+    return ok({
+        "year": yr,
+        "company_total": round(company_total, 6),
+        "total_output": round(total_output, 4),
+        "created": created,
+        "updated": updated,
+    }, message=f"已按产量分摊：新建 {created} 条、更新 {updated} 条产品碳足迹")
 
 
 # ---------------- 供应商 ----------------
@@ -336,6 +429,71 @@ def delete_supplier_carbon(oid: int, db: Session = Depends(get_db),
         sup.total_emission = float(max(0, (sup.total_emission or 0) - (obj.emission or 0)))
     db.delete(obj); db.commit()
     return ok(message="已删除")
+
+
+# ---------------- 供应链汇总 / 预算实际值 / 碳资产盈亏 ----------------
+
+@router.get("/supply-chain/summary", summary="供应链碳汇总（范围3）")
+def supply_chain_summary(year: int = Query(None), db: Session = Depends(get_db),
+                         current_user=Depends(get_current_user)):
+    yr = year or datetime.now().year
+    rows = db.query(SupplierCarbonData).filter(SupplierCarbonData.year == yr).all()
+    total = 0.0
+    sup_map = {}
+    for sr in rows:
+        em = float(sr.emission or 0)
+        total += em
+        sup = db.query(Supplier).filter(Supplier.id == sr.supplier_id).first()
+        name = sup.name if sup else f"供应商{sr.supplier_id}"
+        g = sup_map.setdefault(name, {"supplier": name, "emission": 0.0,
+                                     "risk": sup.risk_level if sup else ""})
+        g["emission"] += em
+    top = sorted(sup_map.values(), key=lambda x: -x["emission"])[:10]
+    return ok({
+        "year": yr,
+        "scope3_total": round(total, 6),
+        "supplier_count": len(sup_map),
+        "top": top,
+    })
+
+
+@router.get("/budgets/actual", summary="碳排放预算实际值（取碳核算+供应链）")
+def carbon_budget_actual(
+    year: int = Query(...), month: int = Query(None), unit_id: int = Query(None),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+):
+    """打通 碳核算 / 供应链 → 碳排放预算：返回某口径下实际碳排放，供预算一键同步。"""
+    q = db.query(CarbonAccounting).filter(CarbonAccounting.year == year)
+    if month:
+        q = q.filter(CarbonAccounting.month == month)
+    s12 = float(sum(r.emission or 0 for r in q.all()))
+    # 供应链范围3 按年并入（供应商数据无月份维度）
+    sup = db.query(SupplierCarbonData).filter(SupplierCarbonData.year == year)
+    s3 = float(sum(sr.emission or 0 for sr in sup.all()))
+    return ok({
+        "year": year, "month": month,
+        "scope1_2": round(s12, 6),
+        "scope3": round(s3, 6),
+        "actual_carbon": round(s12 + s3, 6),
+    })
+
+
+@router.get("/assets/balance", summary="碳资产盈亏（配额/CCER vs 实际排放）")
+def carbon_asset_balance(year: int = Query(...), db: Session = Depends(get_db),
+                        current_user=Depends(get_current_user)):
+    """打通 碳核算 / 供应链(实际排放) → 碳资产：返回配额+CCER 总量与实际排放的盈余/缺口。"""
+    actual = float(sum(r.emission or 0 for r in db.query(CarbonAccounting).filter(CarbonAccounting.year == year).all()))
+    actual += float(sum(sr.emission or 0 for sr in db.query(SupplierCarbonData).filter(SupplierCarbonData.year == year).all()))
+    assets = db.query(CarbonAsset).filter(CarbonAsset.year == year).all()
+    total_quota = float(sum(a.quantity or 0 for a in assets if a.asset_type == "配额"))
+    total_ccer = float(sum(a.quantity or 0 for a in assets if a.asset_type == "CCER"))
+    return ok({
+        "year": year,
+        "actual_emission": round(actual, 6),
+        "total_quota": round(total_quota, 6),
+        "total_ccer": round(total_ccer, 6),
+        "surplus": round(total_quota + total_ccer - actual, 6),  # 正=盈余 负=缺口
+    })
 
 
 # ---------------- 碳核查 ----------------
