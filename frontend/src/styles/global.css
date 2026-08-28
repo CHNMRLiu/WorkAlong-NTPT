@@ -1,0 +1,147 @@
+/* ============ Apple 风格全局样式 + Element Plus 覆盖 ============ */
+:root {
+  --c-bg: #FFFFFF;
+  --c-bg-2: #F5F5F7;
+  --c-bg-3: #FAFAFA;
+  --c-text: #1D1D1F;
+  --c-text-2: #6E6E73;
+  --c-text-3: #86868B;
+  --c-brand: #0071E3;
+  --c-brand-hover: #0077ED;
+  --c-success: #34C759;
+  --c-warning: #FF9500;
+  --c-danger: #FF3B30;
+  --c-border: #D2D2D7;
+  --c-border-light: #E8E8ED;
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --radius-pop: 16px;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06);
+  --shadow-pop: 0 8px 32px rgba(0,0,0,0.12);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--c-bg-2);
+  color: var(--c-text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数字等宽对齐 */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* 页面容器 */
+.page {
+  padding: 24px 32px;
+}
+.page-title {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--c-text);
+  margin: 0 0 4px;
+}
+.page-subtitle {
+  font-size: 14px;
+  color: var(--c-text-2);
+  margin: 0 0 24px;
+}
+
+/* 卡片 */
+.app-card {
+  background: var(--c-bg);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 24px;
+  transition: box-shadow 0.3s ease;
+}
+.app-card:hover { box-shadow: var(--shadow-card-hover); }
+.app-card__title {
+  display: flex;
+  align-items: center;
+  font-size: 17px;
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+.app-card__title::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  background: var(--c-brand);
+  margin-right: 10px;
+}
+
+/* 查询区 */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* 内容面板（el-card 覆盖：Apple 圆角卡片） */
+.panel {
+  border: none;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  margin-bottom: 16px;
+}
+.panel:hover { box-shadow: var(--shadow-card-hover); }
+.panel__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+/* 统计卡行 */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* 报告容器 */
+.report { margin-top: 8px; }
+
+/* ============ Element Plus 覆盖 ============ */
+.el-button--primary {
+  background: var(--c-brand);
+  border-color: var(--c-brand);
+}
+.el-button--primary:hover { background: var(--c-brand-hover); border-color: var(--c-brand-hover); }
+.el-button--primary:active { background: #006EDB; border-color: #006EDB; }
+.el-button.is-plain { background: var(--c-bg-2); border-color: transparent; color: var(--c-text); }
+.el-button.is-plain:hover { background: var(--c-border-light); }
+
+.el-table { --el-table-border-color: var(--c-border-light); --el-table-header-bg-color: var(--c-bg-3);
+  --el-table-row-hover-bg-color: #F0F0F5; font-size: 14px; }
+.el-table th.el-table__cell { color: var(--c-text-2); font-weight: 500; font-size: 13px; }
+.el-table .cell { padding: 0 12px; }
+.el-table .el-table__row { height: 48px; }
+
+.el-input__wrapper, .el-textarea__inner, .el-select__wrapper {
+  border-radius: var(--radius-btn);
+  box-shadow: 0 0 0 1px var(--c-border) inset;
+}
+.el-input__wrapper.is-focus { box-shadow: 0 0 0 1px var(--c-brand) inset, 0 0 0 3px rgba(0,113,227,0.15); }
+
+.el-dialog { border-radius: var(--radius-pop); box-shadow: var(--shadow-pop); }
+.el-dialog__title { font-weight: 600; }
+
+.el-tag { border-radius: 980px; height: 24px; line-height: 24px; padding: 0 10px; font-size: 12px; }
+
+/* 路由淡入 */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
