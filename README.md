@@ -1,11 +1,18 @@
-# WorkBuddy-NTPT · 长泵能碳管理系统
+# WorkAlong-NTPT · 长泵能碳管理系统
 
-> **Energy & Carbon Management System** for industrial enterprises — monitoring energy
-> consumption, energy efficiency, and carbon emissions in one unified platform.
+> **企业级能源与碳排放管理平台 (Enterprise Energy & Carbon Management System)**
 >
-> 面向制造企业的能源与碳排放数字化管理平台，覆盖能源消费、能效测评、能流平衡与碳核算/存证全流程。
+> 面向制造企业，将「能源消费 → 能效测评 → 能流平衡 → 碳核算 → 碳存证」全流程打通的一体化系统。
+> 覆盖电 / 天然气 / 水等多能源类型的表计采集、标准煤与费用折算、同比环比分析、桑基能流图、
+> 范围 1/2/3 碳排放核算，以及核算记录的上链存证与防重复管理。
+>
+> One unified platform for industrial energy and carbon management: multi-source metering,
+> efficiency benchmarking, Sankey energy-flow visualization, scope 1/2/3 carbon accounting,
+> and on-chain evidence with de-duplication.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Stack: Vue3+FastAPI+PostgreSQL](https://img.shields.io/badge/Stack-Vue3%20%7C%20FastAPI%20%7C%20PostgreSQL-blue.svg)](docker-compose.yml)
+[![Deploy: Docker Compose](https://img.shields.io/badge/Deploy-Docker%20Compose-green.svg)](docker-compose.yml)
 
 ---
 
@@ -36,7 +43,7 @@
 ## 3. Project Structure · 目录结构
 
 ```
-WorkBuddy-NTPT/
+WorkAlong-NTPT/
 ├── backend/                 # FastAPI 后端服务
 │   ├── app/                 # 应用代码（api / models / schemas / database）
 │   ├── init_db.py           # 启动建表 + 种子数据
@@ -62,8 +69,8 @@ Requires Docker Engine 20.10+ and Docker Compose v2. Works on **Linux, Windows (
 
 ```bash
 # 1. Clone
-git clone https://github.com/CHNMRLiu/WorkBuddy-NTPT.git
-cd WorkBuddy-NTPT
+git clone https://github.com/CHNMRLiu/WorkAlong-NTPT.git
+cd WorkAlong-NTPT
 
 # 2. Build & start (first run pulls base images, may take a few minutes)
 docker compose up -d --build
@@ -148,3 +155,13 @@ default Docker deployment.
 ## 7. License · 许可证
 
 Released under the [MIT License](LICENSE).
+
+---
+
+## 8. Customization & Contact · 定制与联系
+
+本系统支持企业级定制（品牌 Logo、菜单、报表口径、排放因子库、存证链对接等）。
+
+📫 **邮箱：work200607@163.com**
+
+如需私有化部署、功能二次开发或演示环境，欢迎通过上述邮箱联系。
