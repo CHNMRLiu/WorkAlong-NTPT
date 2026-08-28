@@ -24,6 +24,14 @@
           <StatCard label="报告日期" :value="report.report_date || '—'" />
         </div>
 
+        <div v-if="assetBalance" class="stat-row" style="margin-top:16px">
+          <StatCard label="碳资产(配额+CCER)" :value="fmt(assetBalance.total_quota + assetBalance.total_ccer)" unit="tCO₂" />
+          <StatCard label="实际排放" :value="fmt(assetBalance.actual_emission)" unit="tCO₂" />
+          <StatCard label="配额盈余" :value="fmt(assetBalance.surplus)" unit="tCO₂"
+                    :hint="assetBalance.surplus >= 0 ? '盈余，可交易' : '缺口，需购入'" />
+          <StatCard label="资产状态" :value="assetBalance.surplus >= 0 ? '达标' : '超标'" />
+        </div>
+
         <el-card class="panel" style="margin-top:16px">
           <template #header><span class="panel__title">排放明细（按排放源）</span></template>
           <el-table :data="sources" border stripe :empty-text="'暂无明细'">
@@ -71,10 +79,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/StatCard.vue'
-import { listReports, generateReport, updateReport } from '@/api'
+import { listReports, generateReport, updateReport, getCarbonAssetBalance } from '@/api'
 
 const year = ref(new Date().getFullYear()); const yearOptions = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i)
-const report = ref(null); const sources = ref([])
+const report = ref(null); const sources = ref([]); const assetBalance = ref(null)
 const measures = ref(''); const nextPlan = ref('')
 const genVisible = ref(false); const saving = ref(false)
 const genForm = reactive({ year: new Date().getFullYear(), report_date: '', measures: '', next_plan: '' })
@@ -87,6 +95,7 @@ async function selectYear() {
   const r = list.find(x => x.year === year.value)
   if (r) { report.value = r; sources.value = []; measures.value = r.measures || ''; nextPlan.value = r.next_plan || '' }
   else { report.value = null; sources.value = [] }
+  try { assetBalance.value = await getCarbonAssetBalance({ year: year.value }) } catch (e) { assetBalance.value = null }
 }
 async function generate() {
   saving.value = true
@@ -94,6 +103,7 @@ async function generate() {
     genForm.year = year.value
     const res = await generateReport({ ...genForm })
     report.value = res.report; sources.value = res.sources || []
+    assetBalance.value = res.asset_summary || null
     measures.value = report.value.measures || ''; nextPlan.value = report.value.next_plan || ''
     ElMessage.success('报告已生成'); genVisible.value = false
   } finally { saving.value = false }
