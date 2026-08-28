@@ -84,6 +84,7 @@ export const listCarbonBudgets = (params) => request.get('/energy/carbon-budgets
 export const createCarbonBudget = (data) => request.post('/energy/carbon-budgets', data)
 export const updateCarbonBudget = (id, data) => request.put(`/energy/carbon-budgets/${id}`, data)
 export const deleteCarbonBudget = (id) => request.delete(`/energy/carbon-budgets/${id}`)
+export const getEnergyBudgetActual = (params) => request.get('/energy/budgets/actual', { params })
 
 export const getComprehensive = (params) => request.get('/energy/comprehensive', { params })
 export const getUnitStat = (params) => request.get('/energy/unit-stat', { params })
@@ -106,6 +107,11 @@ export const listFootprints = (params) => request.get('/carbon/footprints', { pa
 export const createFootprint = (data) => request.post('/carbon/footprints', data)
 export const updateFootprint = (id, data) => request.put(`/carbon/footprints/${id}`, data)
 export const deleteFootprint = (id) => request.delete(`/carbon/footprints/${id}`)
+export const autoAllocateFootprint = (year) => request.post(`/carbon/footprints/auto-allocate${year ? `?year=${year}` : ''}`)
+
+export const getSupplyChainSummary = (params) => request.get('/carbon/supply-chain/summary', { params })
+export const getCarbonBudgetActual = (params) => request.get('/carbon/budgets/actual', { params })
+export const getCarbonAssetBalance = (params) => request.get('/carbon/assets/balance', { params })
 
 export const listSuppliers = (params) => request.get('/carbon/suppliers', { params })
 export const createSupplier = (data) => request.post('/carbon/suppliers', data)
