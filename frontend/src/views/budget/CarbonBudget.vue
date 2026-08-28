@@ -8,6 +8,8 @@
           <el-option v-for="y in yearOptions" :key="y" :label="y + ' 年'" :value="y" />
         </el-select>
         <el-button type="primary" @click="openAdd">新增预算</el-button>
+        <el-button type="success" :loading="syncing" @click="syncActual">从碳核算同步</el-button>
+        <span class="tip">按各预算口径自动取数：碳排放核算 + 供应链(范围3)</span>
       </div>
       <el-table :data="list" border stripe v-loading="loading" :empty-text="'暂无预算'">
         <el-table-column prop="year" label="年份" width="80" />
@@ -61,9 +63,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
-import { listCarbonBudgets, createCarbonBudget, updateCarbonBudget, deleteCarbonBudget, listEnergyUnits } from '@/api'
+import { listCarbonBudgets, createCarbonBudget, updateCarbonBudget, deleteCarbonBudget, listEnergyUnits, getCarbonBudgetActual } from '@/api'
 
 const list = ref([]); const total = ref(0); const page = ref(1); const pageSize = ref(50); const loading = ref(false)
+const syncing = ref(false)
 const year = ref(new Date().getFullYear()); const yearOptions = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i)
 const units = ref([]); const unitMap = ref({})
 const visible = ref(false); const editing = ref(false); const saving = ref(false); const formRef = ref(null)
@@ -96,10 +99,26 @@ async function save() {
 async function remove(row) {
   await ElMessageBox.confirm('删除该预算？', '提示', { type: 'warning' }).then(async () => { await deleteCarbonBudget(row.id); ElMessage.success('已删除'); load() }).catch(() => {})
 }
+async function syncActual() {
+  if (!list.value.length) return ElMessage.warning('暂无预算可同步')
+  syncing.value = true
+  try {
+    let n = 0
+    for (const row of list.value) {
+      const res = await getCarbonBudgetActual({ year: row.year, month: row.month || null, unit_id: row.unit_id || null })
+      const val = res.actual_carbon
+      if (val != null && val !== row.actual_carbon) {
+        await updateCarbonBudget(row.id, { actual_carbon: val })
+        n++
+      }
+    }
+    ElMessage.success(`已同步 ${n} 条预算的实际碳排`); load()
+  } catch (e) { ElMessage.error('同步失败') } finally { syncing.value = false }
+}
 onMounted(async () => {
   const u = await listEnergyUnits(); units.value = u.items || u
   unitMap.value = Object.fromEntries(units.value.map(x => [x.id, x.name]))
   load()
 })
 </script>
-<style scoped>.pager { margin-top: 16px; justify-content: flex-end; } .filter-bar { display: flex; gap: 12px; margin-bottom: 14px; }</style>
+<style scoped>.pager { margin-top: 16px; justify-content: flex-end; } .filter-bar { display: flex; gap: 12px; margin-bottom: 14px; align-items: center; } .tip { font-size: 12px; color: #8A8A8E; }</style>
